@@ -23,15 +23,15 @@ func (app *App) getExpenses(w http.ResponseWriter, r *http.Request, userId int) 
 }
 
 type ExpensesInput struct {
-	Title      string `json:"title"`
-	Amount     string `json:"amount"`
-	CategoryId string `json:"category"`
+	Description string `json:"description"`
+	Amount      string `json:"amount"`
+	Category    string `json:"category"`
 }
 
 func validate(input *ExpensesInput) []string {
 	var problems []string
-	if strings.TrimSpace(input.Title) == "" {
-		problems = append(problems, "Title is required")
+	if strings.TrimSpace(input.Description) == "" {
+		problems = append(problems, "Description is required")
 	}
 	if strings.TrimSpace(input.Amount) == "" {
 		problems = append(problems, "Amount is required")
@@ -54,22 +54,22 @@ func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId in
 		return
 	}
 
-	categoryIsExist, err := findingCategory(app.db, &input.CategoryId, userId)
+	categoryId, err := findingCategory(app.db, input.Category)
 	if err != nil {
-		log.Println(err)
-		writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
+		log.Println(err, input.Category, "Category doesn't exist")
+		writeError(w, http.StatusNotFound, "Category not found", "")
 		return
 	}
-	if !categoryIsExist {
-		err := addingCategory(app.db, &input.CategoryId, userId)
-		if err != nil {
-			log.Println(err)
-			writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
-			return
-		}
-	}
+	//if !categoryIsExist {
+	//	err := addingCategory(app.db, &input.CategoryId, userId)
+	//	if err != nil {
+	//		log.Println(err)
+	//		writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
+	//		return
+	//	}
+	//}
 
-	exnpensesId, err := adding(app.db, &input, userId)
+	exnpensesId, err := adding(app.db, &input, userId, categoryId)
 	if err != nil {
 		log.Println(err)
 		writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")

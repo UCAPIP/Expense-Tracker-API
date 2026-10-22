@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const schemaExpenses = `
@@ -30,9 +31,10 @@ CREATE TABLE IF NOT EXISTS Users (
 const schemaCategories = `
 CREATE TABLE IF NOT EXISTS Categories (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-	category_name INTEGER NOT NULL,
-	user_id       INTEGER NOT NULL
+	category_name INTEGER NOT NULL
 );`
+
+//user_id       INTEGER NOT NULL - добавить в схему категорий в будущем
 
 func initDB(db *sql.DB) error {
 	if _, err := db.Exec(schemaUsers); err != nil {
@@ -50,7 +52,7 @@ func initDB(db *sql.DB) error {
 type Expenses struct {
 	Id          int    `json:"id"`
 	Description string `json:"description"`
-	Amount      int    `json:"amount"`
+	Amount      string `json:"amount"`
 	CategoryId  int    `json:"categoryId"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
@@ -67,14 +69,14 @@ type User struct {
 type Category struct {
 	Id           int    `json:"id"`
 	CategoryName string `json:"categoryName"`
-	UserId       int    `json:"userId"`
+	//UserId       int    `json:"userId"`
 }
 
 func loading(db *sql.DB, userId int) ([]Expenses, error) {
 
 	var exp = []Expenses{}
 
-	query := "SELECT * FROM Tasks WHERE user_id = ? ORDER BY id"
+	query := "SELECT * FROM Expenses WHERE user_id = ? ORDER BY id"
 
 	rows, err := db.Query(query, userId)
 	if err != nil {
@@ -102,7 +104,7 @@ func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
 	var e Expenses
 
 	err := db.QueryRow(
-		"SELECT id, title, description, created_at, updated_at, user_id FROM Tasks WHERE id = ? AND user_id = ?",
+		"SELECT id, description, amount, category_id, created_at, updated_at, user_id FROM Expenses WHERE id = ? AND user_id = ?",
 		taskId, userId,
 	).Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.CreatedAt, &e.UpdatedAt, &e.UserId)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -115,47 +117,49 @@ func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
 	return &e, nil
 }
 
-func findingCategory(db *sql.DB, category *string, userId int) (bool, error) {
+func findingCategory(db *sql.DB, category string) (int, error) {
 	var c Category
 
-	normalizedCategory := strings.ToLower(*category)
+	loweredCategory := strings.ToLower(category)
+	normalizedCategory := []rune(loweredCategory)
+	normalizedCategory[0] = unicode.ToUpper(normalizedCategory[0])
 
 	err := db.QueryRow(
-		"SELECT * FROM Categories WHERE category_name = ? AND user_id = ?",
-		normalizedCategory, userId,
-	).Scan(&c.Id, &c.CategoryName, &c.UserId)
+		"SELECT * FROM Categories WHERE category_name = ?",
+		string(normalizedCategory),
+	).Scan(&c.Id, &c.CategoryName)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, ErrNotFound
+		return 0, ErrNotFound
 	}
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
-	return true, nil
+	return c.Id, nil
 }
 
-func addingCategory(db *sql.DB, category *string, userId int) error {
+//func addingCategory(db *sql.DB, category *string, userId int) error {
+//
+//	normalizedCategory := strings.ToLower(*category)
+//
+//	_, err := db.Exec("INSERT INTO Categories (category_name, user_id) VALUES (?, ?)",
+//		normalizedCategory, userId,
+//	)
+//
+//	if err != nil {
+//		log.Println(err)
+//		return err
+//	}
+//
+//	return nil
+//}
 
-	normalizedCategory := strings.ToLower(*category)
-
-	_, err := db.Exec("INSERT INTO Categories (category_name, user_id) VALUES (?, ?)",
-		normalizedCategory, userId,
-	)
-
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	return nil
-}
-
-func adding(db *sql.DB, input *ExpensesInput, userId int) (int64, error) {
+func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, error) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	res, err := db.Exec("INSERT INTO Expenses (title, amount, category_id, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
-		input.Title, input.Amount, now, now, userId,
+	res, err := db.Exec("INSERT INTO Expenses (description, amount, category_id, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+		input.Description, input.Amount, categoryId, now, now, userId,
 	)
 
 	if err != nil {
@@ -168,7 +172,7 @@ func adding(db *sql.DB, input *ExpensesInput, userId int) (int64, error) {
 		log.Println(err)
 		return 0, err
 	}
-	log.Println(id, input.Title, "ID Expenses was created succesfuly")
+	log.Println(id, input.Description, "ID Expenses was created succesfuly")
 	return id, nil
 
 }
