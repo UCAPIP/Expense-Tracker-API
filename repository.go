@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS Users (
 const schemaCategories = `
 CREATE TABLE IF NOT EXISTS Categories (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-	category_name INTEGER NOT NULL
+	category_name INTEGER NOT NULL,
+	user_id       INTEGER NOT NULL
 );`
 
 func initDB(db *sql.DB) error {
@@ -61,6 +62,12 @@ type User struct {
 	Name         string `json:"name"`
 	Email        string `json:"email"`
 	PasswordHash string `json:"password"`
+}
+
+type Category struct {
+	Id           int    `json:"id"`
+	CategoryName string `json:"categoryName"`
+	UserId       int    `json:"userId"`
 }
 
 func loading(db *sql.DB, userId int) ([]Expenses, error) {
@@ -108,12 +115,47 @@ func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
 	return &e, nil
 }
 
-func adding(db *sql.DB, input *TaskInput, userId int) (int64, error) {
+func findingCategory(db *sql.DB, category *string, userId int) (bool, error) {
+	var c Category
+
+	normalizedCategory := strings.ToLower(*category)
+
+	err := db.QueryRow(
+		"SELECT * FROM Categories WHERE category_name = ? AND user_id = ?",
+		normalizedCategory, userId,
+	).Scan(&c.Id, &c.CategoryName, &c.UserId)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func addingCategory(db *sql.DB, category *string, userId int) error {
+
+	normalizedCategory := strings.ToLower(*category)
+
+	_, err := db.Exec("INSERT INTO Categories (category_name, user_id) VALUES (?, ?)",
+		normalizedCategory, userId,
+	)
+
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func adding(db *sql.DB, input *ExpensesInput, userId int) (int64, error) {
 
 	now := time.Now().Format(time.RFC3339)
 
-	res, err := db.Exec("INSERT INTO Tasks (title, description, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
-		input.Title, input.Description, now, now, userId,
+	res, err := db.Exec("INSERT INTO Expenses (title, amount, category_id, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
+		input.Title, input.Amount, now, now, userId,
 	)
 
 	if err != nil {
@@ -126,16 +168,16 @@ func adding(db *sql.DB, input *TaskInput, userId int) (int64, error) {
 		log.Println(err)
 		return 0, err
 	}
-	log.Println(id, "ID Task was created succesfuly")
+	log.Println(id, input.Title, "ID Expenses was created succesfuly")
 	return id, nil
 
 }
 
-func editing(db *sql.DB, input *TaskInput, id, userId int) error {
+func editing(db *sql.DB, input *ExpensesInput, id, userId int) error {
 	now := time.Now().Format(time.RFC3339)
 
 	res, err := db.Exec("UPDATE Tasks SET title = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-		input.Title, input.Description, now, id, userId,
+		input.Title, input.Amount, now, id, userId,
 	)
 	if err != nil {
 		return err

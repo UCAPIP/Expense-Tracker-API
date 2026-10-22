@@ -23,18 +23,19 @@ func (app *App) getExpenses(w http.ResponseWriter, r *http.Request, userId int) 
 	writeJSON(w, http.StatusOK, tasks)
 }
 
-type TaskInput struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+type ExpensesInput struct {
+	Title      string `json:"title"`
+	Amount     string `json:"amount"`
+	CategoryId string `json:"category"`
 }
 
-func validate(input *TaskInput) []string {
+func validate(input *ExpensesInput) []string {
 	var problems []string
 	if strings.TrimSpace(input.Title) == "" {
 		problems = append(problems, "Title is required")
 	}
-	if strings.TrimSpace(input.Description) == "" {
-		problems = append(problems, "Content is required")
+	if strings.TrimSpace(input.Amount) == "" {
+		problems = append(problems, "Amount is required")
 	}
 	return problems
 }
@@ -42,7 +43,7 @@ func validate(input *TaskInput) []string {
 func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId int) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
-	var input TaskInput
+	var input ExpensesInput
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid JSON body", "")
@@ -54,21 +55,36 @@ func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId in
 		return
 	}
 
-	taskId, err := adding(app.db, &input, userId)
+	categoryIsExist, err := findingCategory(app.db, &input.CategoryId, userId)
+	if err != nil {
+		log.Println(err)
+		writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
+		return
+	}
+	if !categoryIsExist {
+		err := addingCategory(app.db, &input.CategoryId, userId)
+		if err != nil {
+			log.Println(err)
+			writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
+			return
+		}
+	}
+
+	exnpensesId, err := adding(app.db, &input, userId)
 	if err != nil {
 		log.Println(err)
 		writeError(w, http.StatusInternalServerError, "Internal server error", "An unexpected error occurred on the server. Please try again later.")
 		return
 	}
 
-	newTask, err := finding(app.db, int(taskId), userId)
+	newExpenses, err := finding(app.db, int(exnpensesId), userId)
 	if err != nil {
 		log.Println(err)
 		writeError(w, http.StatusInternalServerError, "Internal server error", "")
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newTask)
+	writeJSON(w, http.StatusCreated, newExpenses)
 }
 
 func (app *App) updateExpensesById(w http.ResponseWriter, r *http.Request, userId int) {
@@ -80,7 +96,7 @@ func (app *App) updateExpensesById(w http.ResponseWriter, r *http.Request, userI
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var input TaskInput
+	var input ExpensesInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid JSON body", "")
 		return
