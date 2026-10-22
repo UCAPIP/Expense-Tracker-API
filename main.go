@@ -45,8 +45,8 @@ func main() {
 
 	http.HandleFunc("GET /expenses", app.requireAuth(app.getExpenses))
 	http.HandleFunc("POST /expenses", app.requireAuth(app.addNewExpenses))
-	http.HandleFunc("DELETE /tasks/{id}", app.requireAuth(app.deleteExpensesById))
-	http.HandleFunc("PUT /tasks/{id}", app.requireAuth(app.updateExpensesById))
+	//http.HandleFunc("DELETE /tasks/{id}", app.requireAuth(app.deleteExpensesById))
+	//http.HandleFunc("PUT /tasks/{id}", app.requireAuth(app.updateExpensesById))
 
 	log.Println("The server is running on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

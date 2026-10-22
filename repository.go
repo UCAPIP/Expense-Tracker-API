@@ -173,41 +173,41 @@ func adding(db *sql.DB, input *ExpensesInput, userId int) (int64, error) {
 
 }
 
-func editing(db *sql.DB, input *ExpensesInput, id, userId int) error {
-	now := time.Now().Format(time.RFC3339)
-
-	res, err := db.Exec("UPDATE Tasks SET title = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-		input.Title, input.Amount, now, id, userId,
-	)
-	if err != nil {
-		return err
-	}
-
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-func deleting(db *sql.DB, id, userId int) error {
-	res, err := db.Exec("DELETE FROM Tasks WHERE id = ? AND user_id = ?", id, userId)
-	if err != nil {
-		return err
-	}
-
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
+//func editing(db *sql.DB, input *ExpensesInput, id, userId int) error {
+//	now := time.Now().Format(time.RFC3339)
+//
+//	res, err := db.Exec("UPDATE Tasks SET title = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+//		input.Title, input.Amount, now, id, userId,
+//	)
+//	if err != nil {
+//		return err
+//	}
+//
+//	n, err := res.RowsAffected()
+//	if err != nil {
+//		return err
+//	}
+//	if n == 0 {
+//		return ErrNotFound
+//	}
+//	return nil
+//}
+//
+//func deleting(db *sql.DB, id, userId int) error {
+//	res, err := db.Exec("DELETE FROM Tasks WHERE id = ? AND user_id = ?", id, userId)
+//	if err != nil {
+//		return err
+//	}
+//
+//	n, err := res.RowsAffected()
+//	if err != nil {
+//		return err
+//	}
+//	if n == 0 {
+//		return ErrNotFound
+//	}
+//	return nil
+//}
 
 func createUser(db *sql.DB, name, email, passHash string) (int64, error) {
 	res, err := db.Exec("INSERT INTO Users (name, email, password) VALUES (?, ?, ?)",
@@ -248,11 +248,11 @@ func findUserByUsername(db *sql.DB, email string) (*User, error) {
 	return &targetUser, nil
 }
 
-func taskOwner(db *sql.DB, taskID int) (int, error) {
-	var owner int
-	err := db.QueryRow("SELECT user_id FROM Tasks WHERE id = ?", taskID).Scan(&owner)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, ErrNotFound
-	}
-	return owner, err
-}
+//func taskOwner(db *sql.DB, taskID int) (int, error) {
+//	var owner int
+//	err := db.QueryRow("SELECT user_id FROM Tasks WHERE id = ?", taskID).Scan(&owner)
+//	if errors.Is(err, sql.ErrNoRows) {
+//		return 0, ErrNotFound
+//	}
+//	return owner, err
+//}
