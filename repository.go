@@ -196,22 +196,22 @@ func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, er
 //	}
 //	return nil
 //}
-//
-//func deleting(db *sql.DB, id, userId int) error {
-//	res, err := db.Exec("DELETE FROM Tasks WHERE id = ? AND user_id = ?", id, userId)
-//	if err != nil {
-//		return err
-//	}
-//
-//	n, err := res.RowsAffected()
-//	if err != nil {
-//		return err
-//	}
-//	if n == 0 {
-//		return ErrNotFound
-//	}
-//	return nil
-//}
+
+func deleting(db *sql.DB, id, userId int) error {
+	res, err := db.Exec("DELETE FROM Expenses WHERE id = ? AND user_id = ?", id, userId)
+	if err != nil {
+		return err
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
 func createUser(db *sql.DB, name, email, passHash string) (int64, error) {
 	res, err := db.Exec("INSERT INTO Users (name, email, password) VALUES (?, ?, ?)",
@@ -252,11 +252,11 @@ func findUserByUsername(db *sql.DB, email string) (*User, error) {
 	return &targetUser, nil
 }
 
-//func taskOwner(db *sql.DB, taskID int) (int, error) {
-//	var owner int
-//	err := db.QueryRow("SELECT user_id FROM Tasks WHERE id = ?", taskID).Scan(&owner)
-//	if errors.Is(err, sql.ErrNoRows) {
-//		return 0, ErrNotFound
-//	}
-//	return owner, err
-//}
+func taskOwner(db *sql.DB, expensesId int) (int, error) {
+	var owner int
+	err := db.QueryRow("SELECT user_id FROM Expenses WHERE id = ?", expensesId).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return owner, err
+}
