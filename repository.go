@@ -177,25 +177,25 @@ func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, er
 
 }
 
-//func editing(db *sql.DB, input *ExpensesInput, id, userId int) error {
-//	now := time.Now().Format(time.RFC3339)
-//
-//	res, err := db.Exec("UPDATE Tasks SET title = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-//		input.Title, input.Amount, now, id, userId,
-//	)
-//	if err != nil {
-//		return err
-//	}
-//
-//	n, err := res.RowsAffected()
-//	if err != nil {
-//		return err
-//	}
-//	if n == 0 {
-//		return ErrNotFound
-//	}
-//	return nil
-//}
+func editing(db *sql.DB, input *ExpensesInput, id, userId, categoryId int) error {
+	now := time.Now().Format(time.RFC3339)
+
+	res, err := db.Exec("UPDATE Expenses SET description = ?, amount = ?, updated_at = ?, category_id = ? WHERE id = ? AND user_id = ?",
+		input.Description, input.Amount, now, categoryId, id, userId,
+	)
+	if err != nil {
+		return err
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
 func deleting(db *sql.DB, id, userId int) error {
 	res, err := db.Exec("DELETE FROM Expenses WHERE id = ? AND user_id = ?", id, userId)

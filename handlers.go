@@ -87,62 +87,69 @@ func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId in
 	writeJSON(w, http.StatusCreated, newExpenses)
 }
 
-//	func (app *App) updateExpensesById(w http.ResponseWriter, r *http.Request, userId int) {
-//		taskIdStr := r.PathValue("id")
-//		taskId, err := strconv.Atoi(taskIdStr)
-//		if err != nil {
-//			writeError(w, http.StatusBadRequest, "Bad Request", "The 'id' parameter must be a valid integer number.")
-//			return
-//		}
-//
-//		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-//		var input ExpensesInput
-//		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-//			writeError(w, http.StatusBadRequest, "Invalid JSON body", "")
-//			return
-//		}
-//
-//		if problems := validate(&input); len(problems) > 0 {
-//			writeError(w, http.StatusBadRequest, "Validation failed", strings.Join(problems, "; "))
-//			return
-//		}
-//
-//		owner, err := taskOwner(app.db, taskId)
-//		if errors.Is(err, ErrNotFound) {
-//			writeError(w, http.StatusNotFound, "Task not found", "")
-//			return
-//		}
-//		if err != nil {
-//			log.Println(err)
-//			writeError(w, http.StatusInternalServerError, "Internal error", "")
-//			return
-//		}
-//		if owner != userId {
-//			writeError(w, http.StatusForbidden, "Forbidden", "")
-//			return
-//		}
-//
-//		err = editing(app.db, &input, taskId, userId)
-//		if errors.Is(err, ErrNotFound) {
-//			writeError(w, http.StatusNotFound, "Task not found", "")
-//			return
-//		}
-//		if err != nil {
-//			log.Println(err)
-//			writeError(w, http.StatusInternalServerError, "Internal error", "")
-//			return
-//		}
-//
-//		updatedTask, err := finding(app.db, taskId, userId)
-//		if err != nil {
-//			log.Println(err)
-//			writeError(w, http.StatusInternalServerError, "Internal error", "")
-//			return
-//		}
-//
-//		writeJSON(w, http.StatusOK, updatedTask)
-//
-// }
+func (app *App) updateExpensesById(w http.ResponseWriter, r *http.Request, userId int) {
+	expensesIdStr := r.PathValue("id")
+	expensesId, err := strconv.Atoi(expensesIdStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Bad Request", "The 'id' parameter must be a valid integer number.")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var input ExpensesInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON body", "")
+		return
+	}
+
+	if problems := validate(&input); len(problems) > 0 {
+		writeError(w, http.StatusBadRequest, "Validation failed", strings.Join(problems, "; "))
+		return
+	}
+
+	owner, err := taskOwner(app.db, expensesId)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "Expenses not found", "")
+		return
+	}
+	if err != nil {
+		log.Println(err)
+		writeError(w, http.StatusInternalServerError, "Internal error", "")
+		return
+	}
+	if owner != userId {
+		writeError(w, http.StatusForbidden, "Forbidden", "")
+		return
+	}
+
+	categoryId, err := findingCategory(app.db, input.Category)
+	if err != nil {
+		log.Println(err, input.Category, "Category doesn't exist")
+		writeError(w, http.StatusNotFound, "Category not found", "")
+		return
+	}
+
+	err = editing(app.db, &input, expensesId, userId, categoryId)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "Expenses not found", "")
+		return
+	}
+	if err != nil {
+		log.Println(err)
+		writeError(w, http.StatusInternalServerError, "Internal error", "")
+		return
+	}
+
+	updatedTask, err := finding(app.db, expensesId, userId)
+	if err != nil {
+		log.Println(err)
+		writeError(w, http.StatusInternalServerError, "Internal error", "")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, updatedTask)
+
+}
 
 func (app *App) deleteExpensesById(w http.ResponseWriter, r *http.Request, userId int) {
 	expensesIdStr := r.PathValue("id")
