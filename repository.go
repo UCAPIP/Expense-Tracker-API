@@ -6,7 +6,6 @@ import (
 	"log"
 	"strings"
 	"time"
-	"unicode"
 )
 
 const schemaExpenses = `
@@ -45,13 +44,24 @@ func initDB(db *sql.DB) error {
 	if _, err := db.Exec(schemaCategories); err != nil {
 		return err
 	}
+	return seedCategories(db)
+}
+
+var defaultCategories = []string{"Groceries", "Leisure", "Electronics", "Utilities", "Clothing", "Health", "Others"}
+
+func seedCategories(db *sql.DB) error {
+	for _, name := range defaultCategories {
+		if _, err := db.Exec("INSERT OR IGNORE INTO Categories (category_name) VALUES (?)", name); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 type Expenses struct {
 	Id          int    `json:"id"`
 	Description string `json:"description"`
-	Amount      string `json:"amount"`
+	Amount      int    `json:"amount"`
 	CategoryId  int    `json:"categoryId"`
 	SpentOn     string `json:"spentOn"`
 	CreatedAt   string `json:"createdAt"`
@@ -71,40 +81,49 @@ type Category struct {
 	CategoryName string `json:"categoryName"`
 }
 
-func loading(db *sql.DB, userId int) ([]Expenses, error) {
+func loading(db *sql.DB, userId int, dr DateRange) ([]Expenses, error) {
+	query := `SELECT id, description, amount, category_id, spent_on, created_at, updated_at, user_id
+	          FROM Expenses WHERE user_id = ?`
+	args := []any{userId}
 
-	var exp = []Expenses{}
+	if dr.From != "" {
+		query += " AND spent_on >= ?"
+		args = append(args, dr.From)
+	}
+	if dr.To != "" {
+		query += " AND spent_on <= ?"
+		args = append(args, dr.To)
+	}
+	query += " ORDER BY spent_on DESC, id DESC"
 
-	query := "SELECT * FROM Expenses WHERE user_id = ? ORDER BY id"
-
-	rows, err := db.Query(query, userId)
+	rows, err := db.Query(query, args...)
 	if err != nil {
-		return exp, err
+		return nil, err
 	}
 	defer rows.Close()
 
+	exp := []Expenses{}
 	for rows.Next() {
 		var e Expenses
-		if err := rows.Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.CreatedAt, &e.UpdatedAt, &e.UserId); err != nil {
-			return exp, err
+		if err := rows.Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.SpentOn, &e.CreatedAt, &e.UpdatedAt, &e.UserId); err != nil {
+			return nil, err
 		}
-
 		exp = append(exp, e)
 	}
-
 	if err := rows.Err(); err != nil {
-		return exp, err
+		return nil, err
 	}
 
 	return exp, nil
 }
 
-func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
+func finding(db *sql.DB, expenseId, userId int) (*Expenses, error) {
 	var e Expenses
 
 	err := db.QueryRow(
-		"SELECT id, description, amount, category_id, spent_on, created_at, updated_at, user_id FROM Expenses WHERE id = ? AND user_id = ?",
-		taskId, userId,
+		`SELECT id, description, amount, category_id, spent_on, created_at, updated_at, user_id
+		 FROM Expenses WHERE id = ? AND user_id = ?`,
+		expenseId, userId,
 	).Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.SpentOn, &e.CreatedAt, &e.UpdatedAt, &e.UserId)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -117,24 +136,15 @@ func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
 }
 
 func findingCategory(db *sql.DB, category string) (int, error) {
-	var c Category
-
-	loweredCategory := strings.ToLower(category)
-	normalizedCategory := []rune(loweredCategory)
-	normalizedCategory[0] = unicode.ToUpper(normalizedCategory[0])
-
+	var id int
 	err := db.QueryRow(
-		"SELECT * FROM Categories WHERE category_name = ?",
-		string(normalizedCategory),
-	).Scan(&c.Id, &c.CategoryName)
+		"SELECT id FROM Categories WHERE category_name = ? COLLATE NOCASE",
+		strings.TrimSpace(category),
+	).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, ErrNotFound
 	}
-	if err != nil {
-		return 0, err
-	}
-
-	return c.Id, nil
+	return id, err
 }
 
 //func addingCategory(db *sql.DB, category *string, userId int) error {
@@ -153,33 +163,25 @@ func findingCategory(db *sql.DB, category string) (int, error) {
 //	return nil
 //}
 
-func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, error) {
+func adding(db *sql.DB, input *ExpensesInput, userId, categoryID int) (int64, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
 
-	now := time.Now().Format(time.RFC3339)
-
-	res, err := db.Exec("INSERT INTO Expenses (description, amount, category_id, spent_on, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		input.Description, input.Amount, categoryId, input.SpentOn, now, now, userId,
+	res, err := db.Exec(
+		`INSERT INTO Expenses (description, amount, category_id, spent_on, created_at, updated_at, user_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		input.Description, input.Amount, categoryID, input.SpentOn, now, now, userId,
 	)
-
 	if err != nil {
-		log.Println(err)
 		return 0, err
 	}
 
-	id, err := res.LastInsertId()
-	if err != nil {
-		log.Println(err)
-		return 0, err
-	}
-	log.Println(id, input.Description, "ID Expenses was created successfuly")
-	return id, nil
-
+	return res.LastInsertId()
 }
 
 func editing(db *sql.DB, input *ExpensesInput, id, userId, categoryId int) error {
 	now := time.Now().Format(time.RFC3339)
 
-	res, err := db.Exec("UPDATE Expenses SET description = ?, amount = ?, spent_on = ? updated_at = ?, category_id = ? WHERE id = ? AND user_id = ?",
+	res, err := db.Exec("UPDATE Expenses SET description = ?, amount = ?, spent_on = ?, updated_at = ?, category_id = ? WHERE id = ? AND user_id = ?",
 		input.Description, input.Amount, input.SpentOn, now, categoryId, id, userId,
 	)
 	if err != nil {

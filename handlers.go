@@ -7,25 +7,31 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 func (app *App) getExpenses(w http.ResponseWriter, r *http.Request, userId int) {
-
-	tasks, err := loading(app.db, userId)
+	dr, err := parseRange(r.URL.Query(), time.Now())
 	if err != nil {
-		log.Printf("ERROR: Unable to load tasks from DB: %v", err)
-		writeError(w, http.StatusInternalServerError, "Internal server error", "Unable to load data.")
+		writeError(w, http.StatusBadRequest, "Bad Request", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, tasks)
+	expenses, err := loading(app.db, userId, dr)
+	if err != nil {
+		log.Println(err)
+		writeError(w, http.StatusInternalServerError, "Internal server error", "")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, expenses)
 }
 
 type ExpensesInput struct {
 	Description string `json:"description"`
-	Amount      string `json:"amount"`
+	Amount      int    `json:"amount"`
 	Category    string `json:"category"`
 	SpentOn     string `json:"spentOn"`
 }
@@ -35,10 +41,24 @@ func validate(input *ExpensesInput) []string {
 	if strings.TrimSpace(input.Description) == "" {
 		problems = append(problems, "Description is required")
 	}
-	if strings.TrimSpace(input.Amount) == "" {
-		problems = append(problems, "Amount is required")
+	if input.Amount <= 0 {
+		problems = append(problems, "Amount must be greater than 0")
+	}
+	if strings.TrimSpace(input.Category) == "" {
+		problems = append(problems, "Category is required")
 	}
 	return problems
+}
+
+func normalizeSpentOn(input *ExpensesInput) error {
+	if input.SpentOn == "" {
+		input.SpentOn = time.Now().UTC().Format(dateLayout)
+		return nil
+	}
+	if _, err := time.Parse(dateLayout, input.SpentOn); err != nil {
+		return errors.New("spentOn must be in YYYY-MM-DD format")
+	}
+	return nil
 }
 
 func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId int) {
@@ -53,6 +73,18 @@ func (app *App) addNewExpenses(w http.ResponseWriter, r *http.Request, userId in
 
 	if problems := validate(&input); len(problems) > 0 {
 		writeError(w, http.StatusBadRequest, "Validation failed", strings.Join(problems, "; "))
+		return
+	}
+
+	if err := normalizeSpentOn(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	if input.SpentOn == "" {
+		input.SpentOn = time.Now().UTC().Format(dateLayout) // не прислал дату, значит сегодня
+	} else if _, err := time.Parse(dateLayout, input.SpentOn); err != nil {
+		writeError(w, http.StatusBadRequest, "Validation failed", "date must be in YYYY-MM-DD format")
 		return
 	}
 
@@ -105,6 +137,11 @@ func (app *App) updateExpensesById(w http.ResponseWriter, r *http.Request, userI
 
 	if problems := validate(&input); len(problems) > 0 {
 		writeError(w, http.StatusBadRequest, "Validation failed", strings.Join(problems, "; "))
+		return
+	}
+
+	if err := normalizeSpentOn(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "Validation failed", err.Error())
 		return
 	}
 
