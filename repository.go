@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS Expenses (
     description   TEXT NOT NULL,
 	amount        INTEGER NOT NULL,
 	category_id   INTEGER NOT NULL,
+	spent_on      TEXT NOT NULL,
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
 	user_id       INTEGER NOT NULL
@@ -34,8 +35,6 @@ CREATE TABLE IF NOT EXISTS Categories (
 	category_name INTEGER NOT NULL
 );`
 
-//user_id       INTEGER NOT NULL - добавить в схему категорий в будущем
-
 func initDB(db *sql.DB) error {
 	if _, err := db.Exec(schemaUsers); err != nil {
 		return err
@@ -54,6 +53,7 @@ type Expenses struct {
 	Description string `json:"description"`
 	Amount      string `json:"amount"`
 	CategoryId  int    `json:"categoryId"`
+	SpentOn     string `json:"spentOn"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 	UserId      int    `json:"userId"`
@@ -69,7 +69,6 @@ type User struct {
 type Category struct {
 	Id           int    `json:"id"`
 	CategoryName string `json:"categoryName"`
-	//UserId       int    `json:"userId"`
 }
 
 func loading(db *sql.DB, userId int) ([]Expenses, error) {
@@ -104,9 +103,9 @@ func finding(db *sql.DB, taskId, userId int) (*Expenses, error) {
 	var e Expenses
 
 	err := db.QueryRow(
-		"SELECT id, description, amount, category_id, created_at, updated_at, user_id FROM Expenses WHERE id = ? AND user_id = ?",
+		"SELECT id, description, amount, category_id, spent_on, created_at, updated_at, user_id FROM Expenses WHERE id = ? AND user_id = ?",
 		taskId, userId,
-	).Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.CreatedAt, &e.UpdatedAt, &e.UserId)
+	).Scan(&e.Id, &e.Description, &e.Amount, &e.CategoryId, &e.SpentOn, &e.CreatedAt, &e.UpdatedAt, &e.UserId)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -158,8 +157,8 @@ func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, er
 
 	now := time.Now().Format(time.RFC3339)
 
-	res, err := db.Exec("INSERT INTO Expenses (description, amount, category_id, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?)",
-		input.Description, input.Amount, categoryId, now, now, userId,
+	res, err := db.Exec("INSERT INTO Expenses (description, amount, category_id, spent_on, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		input.Description, input.Amount, categoryId, input.SpentOn, now, now, userId,
 	)
 
 	if err != nil {
@@ -172,7 +171,7 @@ func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, er
 		log.Println(err)
 		return 0, err
 	}
-	log.Println(id, input.Description, "ID Expenses was created succesfuly")
+	log.Println(id, input.Description, "ID Expenses was created successfuly")
 	return id, nil
 
 }
@@ -180,8 +179,8 @@ func adding(db *sql.DB, input *ExpensesInput, userId, categoryId int) (int64, er
 func editing(db *sql.DB, input *ExpensesInput, id, userId, categoryId int) error {
 	now := time.Now().Format(time.RFC3339)
 
-	res, err := db.Exec("UPDATE Expenses SET description = ?, amount = ?, updated_at = ?, category_id = ? WHERE id = ? AND user_id = ?",
-		input.Description, input.Amount, now, categoryId, id, userId,
+	res, err := db.Exec("UPDATE Expenses SET description = ?, amount = ?, spent_on = ? updated_at = ?, category_id = ? WHERE id = ? AND user_id = ?",
+		input.Description, input.Amount, input.SpentOn, now, categoryId, id, userId,
 	)
 	if err != nil {
 		return err

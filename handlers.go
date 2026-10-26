@@ -27,6 +27,7 @@ type ExpensesInput struct {
 	Description string `json:"description"`
 	Amount      string `json:"amount"`
 	Category    string `json:"category"`
+	SpentOn     string `json:"spentOn"`
 }
 
 func validate(input *ExpensesInput) []string {
